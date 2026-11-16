@@ -53,6 +53,11 @@
       </div>
 
       <div class="selection-info" id="selectionInfo">未选择门</div>
+
+      <p class="hint hint-reverse">
+        ⚠ 量子门（除测量外）都是可逆酉操作；测量不可逆，被测比特之后不能再施加
+        H / CNOT（目标）这类会重新产生叠加态的门。
+      </p>
     </aside>
 
     <!-- 右侧：线路 + 结果 -->
@@ -86,6 +91,8 @@
       <div class="circuit-scroll">
         <div id="circuitGrid" class="circuit-grid"></div>
       </div>
+
+      <div id="validationPanel" class="validation-panel" hidden></div>
 
       <div class="run-bar">
         <label for="shotsInput">采样次数（shots）</label>

@@ -150,6 +150,56 @@ public final class CircuitRunnerTest {
             TestRunner.assertEquals("mode", "local", r.get("mode"));
         });
 
+        // ---------------- 输入态 ----------------
+
+        TestRunner.test("input state |1> on q0", () -> {
+            Map<String, Object> r = CircuitRunner.run(requestWithInputs(2, 0, List.of("1", "0")));
+            TestRunner.assertClose("p(01)", 1.0, prob(r, 1), 1e-6);
+            TestRunner.assertEquals("inputs echoed", List.of("1", "0"), r.get("inputs"));
+        });
+
+        TestRunner.test("input state |+> superposition", () -> {
+            Map<String, Object> r = CircuitRunner.run(requestWithInputs(1, 0, List.of("+")));
+            TestRunner.assertClose("p0", 0.5, prob(r, 0), 1e-4);
+            TestRunner.assertClose("p1", 0.5, prob(r, 1), 1e-4);
+        });
+
+        TestRunner.test("input probabilities returned", () -> {
+            Map<String, Object> r = CircuitRunner.run(requestWithInputs(1, 0, List.of("+")));
+            List<Double> ip = (List<Double>) r.get("inputProbabilities");
+            TestRunner.assertEquals("size", 2, ip.size());
+            TestRunner.assertClose("ip0", 0.5, ip.get(0), 1e-4);
+            TestRunner.assertClose("ip1", 0.5, ip.get(1), 1e-4);
+        });
+
+        TestRunner.test("input |1> then X returns |0>", () -> {
+            Map<String, Object> r = CircuitRunner.run(requestWithInputs(1, 0, List.of("1"),
+                step(gate("X", 0))));
+            TestRunner.assertClose("p0", 1.0, prob(r, 0), 1e-6);
+        });
+
+        TestRunner.test("input |i> gives pure imaginary amplitude", () -> {
+            Map<String, Object> r = CircuitRunner.run(requestWithInputs(1, 0, List.of("i")));
+            List<Map<String, Object>> sv = stateVector(r);
+            TestRunner.assertClose("amp0.re", 0.7071, num(sv.get(0).get("re")), 1e-3);
+            TestRunner.assertClose("amp1.im", 0.7071, num(sv.get(1).get("im")), 1e-3);
+        });
+
+        TestRunner.test("invalid input state throws", () -> {
+            TestRunner.assertThrows("x", CircuitException.class,
+                () -> CircuitRunner.run(requestWithInputs(1, 0, List.of("x"))));
+        });
+
+        TestRunner.test("inputs length mismatch throws", () -> {
+            TestRunner.assertThrows("len", CircuitException.class,
+                () -> CircuitRunner.run(requestWithInputs(2, 0, List.of("0"))));
+        });
+
+        TestRunner.test("target out of range throws", () -> {
+            TestRunner.assertThrows("oor", CircuitException.class,
+                () -> CircuitRunner.run(request(2, 0, step(gate("X", 5)))));
+        });
+
         // ---------------- 错误路径 ----------------
 
         TestRunner.test("invalid qubit count", () -> {
@@ -227,6 +277,14 @@ public final class CircuitRunnerTest {
         r.put("qubits", qubits);
         r.put("shots", shots);
         r.put("steps", new ArrayList<>(Arrays.asList(steps)));
+        return r;
+    }
+
+    @SafeVarargs
+    private static Map<String, Object> requestWithInputs(int qubits, int shots, List<String> inputs,
+            Map<String, Object>... steps) {
+        Map<String, Object> r = request(qubits, shots, steps);
+        r.put("inputs", inputs);
         return r;
     }
 

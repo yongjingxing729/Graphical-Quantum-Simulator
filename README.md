@@ -41,8 +41,10 @@
 - 量子线路画布（比特线 × 时间步列），点击放置门，支持撤销/清空。
 - 支持门：`H / X / Y / Z / I / S / T / P(θ) / Rx(θ) / Ry(θ) / Rz(θ) / CNOT / CZ / SWAP / Toffoli / M`。
 - 多比特门（CNOT/CZ/SWAP/Toffoli）依次点击各比特线放置，自动绘制控制点（●）与受控点（⊕）。
+- **自定义输入态**：每个量子比特可选 `|0⟩ / |1⟩ / |+⟩ / |−⟩ / |i⟩ / |−i⟩`，并同时可视化输入态与输出态。
+- **实时错误提醒**：测量后叠加（量子测量不可逆）、比特越界、非法输入等会即时提示；致命问题会禁用「运行」按钮。
 - 示例线路：Bell 态、GHZ(3)、叠加态、比特翻转。
-- 结果展示：态矢量概率直方图、态矢量复振幅表、各比特 `|1⟩` 概率、测量采样直方图（shots）。
+- 结果展示：输入态与输出态概率分布、输出态复振幅表、各比特 `|1⟩` 概率、测量采样直方图（shots）。
 
 ---
 
@@ -302,20 +304,22 @@ export QSIM_MODE=cloud
 | `GET` | `/api/upstream` | 上游更新状态（含尽力而为的在线检查） |
 | `POST` | `/api/circuit/run` | 执行线路模拟 |
 
-`POST /api/circuit/run` 请求示例（Bell 态）：
+`POST /api/circuit/run` 请求示例（输入态 |+⟩|0⟩，施加 CNOT 制备 Bell 态）：
 
 ```json
 {
   "qubits": 2,
   "shots": 1024,
+  "inputs": ["+", "0"],
   "steps": [
-    { "gates": [ { "type": "H", "targets": [0] } ] },
     { "gates": [ { "type": "CNOT", "targets": [0, 1] } ] }
   ]
 }
 ```
 
-响应包含：`stateVector`（复振幅）、`probabilities`（各基态概率）、
+`inputs` 为每个量子比特的初始输入态，取值 `0 / 1 / + / - / i / -i`（省略则默认全 `0`，即 |0⟩）。
+
+响应包含：输入态 `inputStateVector` / `inputProbabilities`、输出态 `stateVector` / `probabilities`、
 `qubitProbabilities`（各比特 `|1⟩` 概率）、`counts`（采样直方图）、`sample`（一次采样结果）。
 
 ---

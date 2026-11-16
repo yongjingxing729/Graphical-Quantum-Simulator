@@ -32,9 +32,20 @@ const MIN_COLS = 1;
 const MAX_COLS = 24;
 const DEFAULT_COLS = 8;
 
+// 合法的单比特输入态（与后端保持一致）
+const INPUT_STATES = [
+  { value: "0", label: "|0⟩" },
+  { value: "1", label: "|1⟩" },
+  { value: "+", label: "|+⟩" },
+  { value: "-", label: "|−⟩" },
+  { value: "i", label: "|i⟩" },
+  { value: "-i", label: "|−i⟩" },
+];
+
 // ---- 状态 ----
 let qubits = 2;
 let columns = Array.from({ length: DEFAULT_COLS }, () => []);
+let inputs = Array.from({ length: qubits }, () => "0"); // 每个比特的初始输入态
 let selectedGate = null;          // 当前选中的门类型（string|null）
 let pending = null;               // 多比特门放置中：{type, col, wires:[]}
 let undoStack = [];
@@ -115,13 +126,35 @@ function renderCircuit() {
   const grid = $("circuitGrid");
   grid.innerHTML = "";
 
-  // 左侧比特标签
+  // 左侧比特标签 + 输入态选择
   const labels = document.createElement("div");
   labels.className = "wire-labels";
+  const lhead = document.createElement("div");
+  lhead.className = "col-head";
+  lhead.textContent = "输入";
+  labels.appendChild(lhead);
   for (let w = 0; w < qubits; w++) {
     const l = document.createElement("div");
     l.className = "wire-label";
-    l.textContent = "q" + w;
+    const name = document.createElement("span");
+    name.className = "qname";
+    name.textContent = "q" + w;
+    const sel = document.createElement("select");
+    sel.className = "input-select";
+    sel.title = `设置 q${w} 的初始输入态`;
+    INPUT_STATES.forEach((st) => {
+      const opt = document.createElement("option");
+      opt.value = st.value;
+      opt.textContent = st.label;
+      sel.appendChild(opt);
+    });
+    sel.value = inputs[w] || "0";
+    sel.addEventListener("change", () => {
+      inputs[w] = sel.value;
+      renderValidation();
+    });
+    l.appendChild(name);
+    l.appendChild(sel);
     labels.appendChild(l);
   }
   grid.appendChild(labels);
@@ -162,6 +195,7 @@ function renderCircuit() {
 
   $("qubitCount").textContent = qubits;
   $("colCount").textContent = columns.length;
+  renderValidation();
 }
 
 function findGateAt(col, wire) {
@@ -286,12 +320,13 @@ function currentAngle() {
 // 撤销 / 快照
 // ============================================================
 function snapshot() {
-  return { qubits, columns: JSON.parse(JSON.stringify(columns)) };
+  return { qubits, columns: JSON.parse(JSON.stringify(columns)), inputs: inputs.slice() };
 }
 
 function restore(s) {
   qubits = s.qubits;
   columns = s.columns;
+  inputs = s.inputs.slice();
   pending = null;
 }
 
@@ -318,6 +353,8 @@ function setQubits(n) {
   const next = Math.max(MIN_QUBITS, Math.min(MAX_QUBITS, n));
   mutate(() => {
     qubits = next;
+    while (inputs.length < qubits) inputs.push("0");
+    if (inputs.length > qubits) inputs = inputs.slice(0, qubits);
     // 删除引用到被移除比特的门
     columns = columns.map((col) => col.filter((g) => g.targets.every((t) => t < qubits)));
   });
@@ -364,6 +401,7 @@ function applyPreset(name) {
       cols = [[{ type: "X", targets: [0] }]];
     }
     qubits = q;
+    inputs = Array.from({ length: q }, () => "0");
     columns = padColumns(cols);
     pending = null;
   });
@@ -391,7 +429,7 @@ async function runCircuit() {
     }));
 
   const shots = parseInt($("shotsInput").value, 10) || 0;
-  const body = { qubits, shots, steps };
+  const body = { qubits, shots, inputs: inputs.slice(0, qubits), steps };
   const status = $("runStatus");
   const btn = $("runBtn");
   status.textContent = "运行中…";
@@ -411,7 +449,7 @@ async function runCircuit() {
     renderError(e.message);
     status.textContent = "失败";
   } finally {
-    btn.disabled = false;
+    renderValidation();
   }
 }
 
@@ -423,19 +461,39 @@ function renderResults(data) {
   box.innerHTML = "";
   const n = data.qubits;
 
-  // 1) 态矢量概率直方图
-  box.appendChild(card("态矢量概率分布 P(|ψ⟩)", renderProbBars(data.probabilities, n)));
+  // 0) 输入态（定义）
+  box.appendChild(card("输入态 |ψ_in⟩", renderInputSummary(data, n)));
+
+  // 1) 输出态概率直方图
+  box.appendChild(card("输出态概率分布 P(|ψ_out⟩)", renderProbBars(data.probabilities, n)));
 
   // 2) 测量采样直方图
   if (data.shots > 0 && data.counts) {
     box.appendChild(card("测量采样直方图（" + data.shots + " shots）", renderCountBars(data.counts, n)));
   }
 
-  // 3) 态矢量振幅表
-  box.appendChild(card("态矢量振幅（复系数）", renderStateVector(data.stateVector, n)));
+  // 3) 输出态态矢量振幅表
+  box.appendChild(card("输出态态矢量振幅（复系数）", renderStateVector(data.stateVector, n)));
 
   // 4) 各比特 |1⟩ 概率
   box.appendChild(card("各量子比特处于 |1⟩ 的概率", renderQubitProbs(data.qubitProbabilities)));
+}
+
+function renderInputSummary(data, n) {
+  const wrap = document.createElement("div");
+  const line = document.createElement("div");
+  line.className = "input-summary";
+  (data.inputs || []).forEach((st, i) => {
+    const chip = document.createElement("span");
+    chip.className = "input-chip";
+    chip.innerHTML = `<b>q${i}</b> = ${ketOf(st)}`;
+    line.appendChild(chip);
+  });
+  wrap.appendChild(line);
+  if (data.inputProbabilities) {
+    wrap.appendChild(renderProbBars(data.inputProbabilities, n));
+  }
+  return wrap;
 }
 
 function card(title, contentEl) {
@@ -626,6 +684,81 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+// ============================================================
+// 校验 / 错误提醒
+// ============================================================
+function ketOf(v) {
+  const st = INPUT_STATES.find((x) => x.value === v);
+  return st ? st.label : "|0⟩";
+}
+
+function firstMeasurementColumn(wire) {
+  for (let c = 0; c < columns.length; c++) {
+    const g = findGateAt(c, wire);
+    if (g && g.type === "M") {
+      return c;
+    }
+  }
+  return -1;
+}
+
+function validate() {
+  const warnings = [];
+
+  // 致命：测量后重新产生叠加态（与后端 Strange 的 measuresafe 规则一致）
+  for (let w = 0; w < qubits; w++) {
+    const fm = firstMeasurementColumn(w);
+    if (fm < 0) continue;
+    for (let c = fm + 1; c < columns.length; c++) {
+      const g = findGateAt(c, w);
+      if (!g) continue;
+      const isH = g.type === "H";
+      const isCnotTarget = g.type === "CNOT" && g.targets[1] === w;
+      if (isH || isCnotTarget) {
+        warnings.push({
+          level: "fatal",
+          text:
+            `q${w} 在 t${fm} 被测量后，又在 t${c} 施加了 ${isH ? "H" : "CNOT（作为目标）"}，` +
+            `会重新产生叠加态。量子测量不可逆，模拟器会拒绝执行，请先调整线路。`,
+        });
+      }
+    }
+  }
+
+  // 提示：测量不可逆
+  const hasMeasurement = columns.some((col) => col.some((g) => g.type === "M"));
+  if (hasMeasurement) {
+    warnings.push({
+      level: "info",
+      text: "线路包含测量门 M：测量不可逆；本模拟器不会在测量处坍缩态矢量，测量仅用于采样统计。",
+    });
+  }
+
+  return warnings;
+}
+
+function renderValidation() {
+  const panel = $("validationPanel");
+  if (!panel) return;
+  const warnings = validate();
+  panel.innerHTML = "";
+  if (warnings.length === 0) {
+    panel.hidden = true;
+  } else {
+    panel.hidden = false;
+    warnings.forEach((w) => {
+      const div = document.createElement("div");
+      div.className = "validation-item " + w.level;
+      div.textContent = (w.level === "fatal" ? "✖ " : "ℹ ") + w.text;
+      panel.appendChild(div);
+    });
+  }
+  const runBtn = $("runBtn");
+  if (runBtn) {
+    runBtn.disabled = warnings.some((w) => w.level === "fatal");
+  }
 }
 
 // ============================================================
