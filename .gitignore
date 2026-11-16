@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+scripts/tests/_tmp/
 
 # Node / 前端构建产物 (本项目前端为原生静态文件, 通常无需构建)
 node_modules/

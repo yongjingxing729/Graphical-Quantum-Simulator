@@ -73,7 +73,13 @@ Graphical-Quantum-Simulator/
 │   │   │   └── CircuitException.java
 │   │   ├── upstream/UpstreamChecker.java # 上游更新检查（尽力而为）
 │   │   └── server/WebServer.java   # HTTP 路由 + 静态资源托管
-│   └── build/classes/              # 编译产物（.gitignore 忽略）
+│   ├── test/com/gqs/test/          # ★ 后端测试（纯 JDK 测试框架，无 JUnit）
+│   │   ├── TestRunner.java         # 测试入口 + 断言工具
+│   │   ├── JsonTest.java
+│   │   ├── GateFactoryTest.java
+│   │   ├── CircuitRunnerTest.java  # 线路物理正确性 / 错误路径
+│   │   └── UpstreamCheckerTest.java
+│   └── build/                      # 编译产物（.gitignore 忽略）
 ├── frontend/                       # 前端（原生静态文件）
 │   ├── index.html
 │   ├── css/style.css
@@ -81,7 +87,8 @@ Graphical-Quantum-Simulator/
 ├── scripts/                        # Python 脚本
 │   ├── check_upstream.py           # ★ 上游更新提醒
 │   ├── update_upstream.py          # ★ 一键更新上游源码（重新克隆）
-│   └── deploy_cloud.py             # 云端部署辅助
+│   ├── deploy_cloud.py             # 云端部署辅助
+│   └── tests/test_scripts.py       # ★ Python 单元测试（unittest）
 ├── vendor/strange/                 # ★ 上游 Strange 源码（只读，未修改）
 ├── docs/                           # 架构 / 部署 / 开源说明
 ├── strange.version                 # ★ 锁定的上游 commit/版本（供更新提醒）
@@ -89,6 +96,7 @@ Graphical-Quantum-Simulator/
 ├── docker-compose.yml              # 云端部署编排
 ├── build.ps1 / build.sh            # 编译脚本
 ├── run.ps1 / run.sh                # 运行脚本
+├── run_tests.ps1 / run_tests.sh    # ★ 测试脚本（Java + Python）
 ├── LICENSE                         # 本项目代码许可证（MIT）
 ├── NOTICE                          # 第三方署名
 └── THIRD_PARTY_NOTICES.md          # ★ 第三方开源声明
@@ -121,6 +129,44 @@ Linux / macOS：
 > **PowerShell 执行策略提示**：若 `.ps1` 被系统拦截，请运行
 > `powershell -ExecutionPolicy Bypass -File .\run.ps1`，
 > 或 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 后重试。
+
+---
+
+## 运行测试
+
+项目自带两套测试，均**零第三方依赖**（不使用 JUnit / pytest）：
+
+- **Java 后端测试**（`backend/test/`）：自带极简测试框架，覆盖
+  JSON 解析/序列化、门工厂映射、线路执行（Bell / GHZ / X / SWAP / Toffoli / 旋转门）、
+  比特序、采样直方图，以及非法输入/测量后叠加等错误路径。
+- **Python 单元测试**（`scripts/tests/`）：用标准库 `unittest` 验证 `check_upstream` 的
+  配置解析逻辑。
+
+一键运行（会先自动编译主代码与测试代码）：
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File .\run_tests.ps1
+```
+
+```bash
+# Linux / macOS
+./run_tests.sh
+```
+
+预期结果：
+
+```
+[JSON] ...
+[GateFactory] ...
+[CircuitRunner] ...
+[UpstreamChecker] ...
+结果: 47 passed, 0 failed
+[OK] 全部通过
+Ran 4 tests ... OK
+```
+
+> 测试只针对本项目自身的代码与桥接层，**不会修改上游 Strange**。
 
 ---
 
