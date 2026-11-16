@@ -1,0 +1,15 @@
+# Docker 构建上下文忽略项
+.git
+**/.git
+backend/build
+**/__pycache__
+*.pyc
+.venv
+venv
+node_modules
+dist
+docs
+.idea
+.vscode
+*.local.properties
+.env

@@ -1,0 +1,68 @@
+name: Build
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:  
+    runs-on: ubuntu-latest
+    steps:  
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: 21
+          distribution: 'oracle'
+          cache: 'maven' 
+          server-id: ossrh
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_CENTRAL_TOKEN
+
+      - name: Build project 
+        run: |
+          mvn -B -ntp verify
+
+      - name: Publish Snapshots
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ver=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          if [[ $ver == *"SNAPSHOT"* ]]; then
+              mvn -B -ntp deploy
+          fi
+        shell: bash
+        env:
+          MAVEN_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.SONATYPE_PASSWORD }}
+      - name: Upload jacoco reports
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco
+          path: target/site
+
+  coverage:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    needs: [ build ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download jacoco reports
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco
+
+      - name: Generate Jacoco Badge
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: jacoco/jacoco.csv
+          badges-directory: jacoco/badges
+
+      - name: Publish coverage report to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: jacoco

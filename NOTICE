@@ -1,0 +1,10 @@
+Graphical Quantum Simulator
+Copyright (c) 2026 Graphical Quantum Simulator contributors
+
+This product includes software developed as part of the
+Strange project (https://github.com/redfx-quantum/strange),
+Copyright (c) 2018, 2023, Johan Vos, licensed under the
+BSD 3-Clause License.
+
+The vendored Strange source code (vendor/strange/) is kept
+unmodified in accordance with its license terms.

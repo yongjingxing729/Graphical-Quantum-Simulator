@@ -1,0 +1,16 @@
+# ============================================================
+# 统一换行符，确保跨平台（Windows 本地 / Linux 云端 / Docker）一致
+# 关键：.sh 脚本必须是 LF，否则 Linux/Docker 下无法执行
+# ============================================================
+* text=auto eol=lf
+
+# Windows 批处理使用 CRLF
+*.bat text eol=crlf
+
+# 二进制文件不做换行转换
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary

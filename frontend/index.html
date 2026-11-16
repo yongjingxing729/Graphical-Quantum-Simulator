@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantum Circuit Simulator · 可视化量子门组合</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚛</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="atom">⚛</span>
+      <div>
+        <h1>Quantum Circuit Simulator</h1>
+        <p class="subtitle">可视化量子门组合操作 · 基于 Strange（BSD-3-Clause）</p>
+      </div>
+    </div>
+    <div class="top-badges">
+      <span id="modeBadge" class="badge badge-mode">mode: --</span>
+      <span id="versionBadge" class="badge">v--</span>
+      <a class="badge badge-link" href="https://github.com/redfx-quantum/strange" target="_blank" rel="noopener">上游开源仓库 ↗</a>
+    </div>
+  </header>
+
+  <div id="upstreamBanner" class="banner" hidden></div>
+
+  <main class="layout">
+    <!-- 左侧：门面板 -->
+    <aside class="palette">
+      <h2>量子门</h2>
+      <p class="hint">选择门后点击线路格子放置；多比特门需依次点击各比特。</p>
+
+      <div class="gate-group">
+        <div class="group-title">单比特门</div>
+        <div class="gate-grid" id="singleGates"></div>
+      </div>
+
+      <div class="gate-group">
+        <div class="group-title">旋转门（需角度）</div>
+        <div class="gate-grid" id="rotationGates"></div>
+      </div>
+
+      <div class="gate-group">
+        <div class="group-title">多比特门</div>
+        <div class="gate-grid" id="multiGates"></div>
+      </div>
+
+      <div class="angle-box">
+        <label for="angleInput">旋转角度 θ（弧度）</label>
+        <input id="angleInput" type="number" step="0.01" value="1.5708" />
+        <div class="angle-hint">π ≈ 3.14159　π/2 ≈ 1.5708</div>
+      </div>
+
+      <div class="selection-info" id="selectionInfo">未选择门</div>
+    </aside>
+
+    <!-- 右侧：线路 + 结果 -->
+    <section class="workspace">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <label>量子比特</label>
+          <button id="decQubit" class="btn" title="减少比特">−</button>
+          <span id="qubitCount" class="counter">2</span>
+          <button id="incQubit" class="btn" title="增加比特">+</button>
+        </div>
+        <div class="toolbar-group">
+          <label>列（时间步）</label>
+          <button id="decCol" class="btn" title="减少列">−</button>
+          <span id="colCount" class="counter">8</span>
+          <button id="incCol" class="btn" title="增加列">+</button>
+        </div>
+        <div class="toolbar-group presets">
+          <label>示例</label>
+          <button class="btn" data-preset="bell">Bell 态</button>
+          <button class="btn" data-preset="ghz">GHZ(3)</button>
+          <button class="btn" data-preset="superposition">叠加态</button>
+          <button class="btn" data-preset="bitflip">比特翻转</button>
+        </div>
+        <div class="toolbar-group actions">
+          <button id="undoBtn" class="btn btn-alt" title="撤销">↶ 撤销</button>
+          <button id="clearBtn" class="btn btn-alt" title="清空线路">✕ 清空</button>
+        </div>
+      </div>
+
+      <div class="circuit-scroll">
+        <div id="circuitGrid" class="circuit-grid"></div>
+      </div>
+
+      <div class="run-bar">
+        <label for="shotsInput">采样次数（shots）</label>
+        <input id="shotsInput" type="number" min="0" max="100000" step="100" value="1024" />
+        <button id="runBtn" class="btn btn-run">▶ 运行模拟</button>
+        <span id="runStatus" class="run-status"></span>
+      </div>
+
+      <div id="results" class="results"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>本项目的量子模拟内核来自开源项目
+      <a href="https://github.com/redfx-quantum/strange" target="_blank" rel="noopener">Strange</a>
+      （BSD 3-Clause License，Copyright © 2018, 2023 Johan Vos）。上游源码以只读方式置于 <code>vendor/strange/</code>，
+      本项目仅调用其公开 API，未修改其模拟代码。详见 <code>THIRD_PARTY_NOTICES.md</code>、<code>NOTICE</code>、<code>LICENSE</code>。
+    </p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

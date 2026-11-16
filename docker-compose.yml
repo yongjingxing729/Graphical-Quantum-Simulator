@@ -1,0 +1,18 @@
+# ============================================================
+# Docker Compose 云端部署编排
+# 用法：  docker compose up -d --build
+# 访问：  http://<服务器公网IP>:8080
+# ============================================================
+services:
+  quantum-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: graphical-quantum-simulator
+    ports:
+      - "8080:8080"
+    environment:
+      # 云端模式：绑定 0.0.0.0，开放跨域
+      QSIM_MODE: cloud
+      QSIM_PORT: "8080"
+    restart: unless-stopped
