@@ -43,7 +43,7 @@ docker run -d --name gqs -p 8080:8080 -e QSIM_MODE=cloud graphical-quantum-simul
 ### 2.3 直接在服务器上运行
 
 ```bash
-# 服务器上安装 JDK 17+
+# 服务器上安装 JDK 21+
 git clone <本项目地址> && cd <项目目录>
 export QSIM_MODE=cloud
 ./run.sh

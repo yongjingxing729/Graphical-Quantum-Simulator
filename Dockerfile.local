@@ -1,0 +1,30 @@
+# ============================================================
+# 本地 Docker 运行镜像（仅 JRE，使用宿主机已编译的 class）
+# ------------------------------------------------------------
+# 为什么需要它：
+#   上游 Strange 使用了 Java 21 的 API（List.getLast），因此运行环境需 Java 21+。
+#   直接拉取完整的 JDK 镜像体积大、网络慢；本地运行时可直接在宿主机编译，
+#   再用本文件构建一个「只含 JRE」的小镜像，既快又轻。
+#
+# 前置（在项目根目录，Java 21+）：
+#   运行 docker_local.ps1（Windows）或 docker_local.sh（Linux/macOS），
+#   它会自动编译到 prebuilt/classes21 并构建镜像。
+#
+# 手动构建：
+#   docker build -f Dockerfile.local -t graphical-quantum-simulator:local .
+# ============================================================
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+
+COPY prebuilt/classes21 ./backend/build/classes
+COPY frontend ./frontend
+COPY strange.version ./strange.version
+COPY NOTICE ./NOTICE
+COPY THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
+
+ENV QSIM_MODE=local
+ENV QSIM_BIND_HOST=0.0.0.0
+ENV QSIM_PORT=8080
+EXPOSE 8080
+
+CMD ["java", "-cp", "/app/backend/build/classes", "com.gqs.Main"]

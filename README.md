@@ -52,7 +52,7 @@
 
 | 层 | 技术 | 说明 |
 | --- | --- | --- |
-| 后端 | Java（JDK 17+，纯 JDK 无第三方依赖） | JDK 内置 `HttpServer` 提供 REST API；仅依赖上游 Strange |
+| 后端 | Java（JDK 21+，纯 JDK 无第三方依赖） | JDK 内置 `HttpServer` 提供 REST API；仅依赖上游 Strange |
 | 量子内核 | Strange（BSD-3-Clause） | 上游 `vendor/strange/` 源码，只读、未修改 |
 | 前端 | 原生 HTML / CSS / JavaScript | 无构建步骤、无框架，由后端直接托管 |
 | 脚本 | Python 3（仅标准库） | 上游更新提醒、云端部署辅助 |
@@ -108,7 +108,7 @@ Graphical-Quantum-Simulator/
 
 ## 快速开始（本地运行）
 
-**前置条件**：JDK 17+（本机已用 JDK 23 验证）。无需 Maven/Gradle，无需 Node。
+**前置条件**：JDK 21+（本机已用 JDK 23 验证；上游 Strange 使用了 Java 21 的 `List.getLast` API）。无需 Maven/Gradle，无需 Node。
 
 Windows（PowerShell）：
 
@@ -131,6 +131,48 @@ Linux / macOS：
 > **PowerShell 执行策略提示**：若 `.ps1` 被系统拦截，请运行
 > `powershell -ExecutionPolicy Bypass -File .\run.ps1`，
 > 或 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 后重试。
+
+---
+
+## 本地 Docker 运行（可选）
+
+如果希望用 Docker 在**本机**运行（不对外开放），已提供一键脚本：
+
+```powershell
+# Windows（会自动编译 -> 构建镜像 -> 启动容器）
+powershell -ExecutionPolicy Bypass -File .\docker_local.ps1
+```
+
+```bash
+# Linux / macOS
+./docker_local.sh
+```
+
+启动后访问：<http://127.0.0.1:8080>
+
+脚本做了三件事：
+
+1. 用 `javac --release 21` 把源码编译到 `prebuilt/classes21`（项目需要 **Java 21+**）；
+2. 用 `Dockerfile.local` 构建一个**只含 JRE** 的轻量镜像（避免拉取体积很大的完整 JDK 镜像）；
+3. 用 `docker-compose.local.yml` 启动容器，端口只映射到宿主机 `127.0.0.1`。
+
+常用命令：
+
+```bash
+# 查看状态 / 日志
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs -f
+
+# 停止 / 重新构建
+docker compose -f docker-compose.local.yml down
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+> 说明：容器内以 `QSIM_MODE=local` + `QSIM_BIND_HOST=0.0.0.0` 运行（容器内必须监听
+> `0.0.0.0`，否则宿主机端口映射无法访问），但端口只映射到 `127.0.0.1`，因此**只有本机能访问**。
+>
+> 另外，标准 `Dockerfile` 是自包含的多阶段构建（拉取 `eclipse-temurin:21-jdk` 在容器内编译），
+> 适合云端 / CI；本地运行时用上面的 `Dockerfile.local` 更快。
 
 ---
 
@@ -189,6 +231,7 @@ public static final String RUN_MODE = "local"; // 改为 "cloud" 即切换云端
 
 > 在 Docker / 云端编排场景下，也可以**不改代码**，通过环境变量覆盖：
 > `QSIM_MODE=cloud`、`QSIM_PORT=8080`、`QSIM_FRONTEND=frontend`。
+> 其中 `QSIM_BIND_HOST=0.0.0.0` 可在容器内强制监听所有网卡（Docker 端口映射需要）。
 > 两种方式都指向同一个开关，环境变量优先级更高（便于 CI/CD 注入）。
 
 ---

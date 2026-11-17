@@ -52,9 +52,17 @@ public final class AppConfig {
     }
 
     /**
-     * 服务监听地址：本地模式仅绑定本机回环地址，云端模式绑定所有网卡。
+     * 服务监听地址。
+     *
+     * <p>本地模式默认绑定回环地址 {@code 127.0.0.1}，云端模式绑定 {@code 0.0.0.0}。
+     * 在 Docker 容器中运行时，即使保持「本地模式」，也需要监听 {@code 0.0.0.0}
+     * （否则宿主机的端口映射无法访问容器），因此支持环境变量 {@code QSIM_BIND_HOST} 覆盖。</p>
      */
     public static String bindHost() {
+        String env = System.getenv("QSIM_BIND_HOST");
+        if (env != null && !env.isBlank()) {
+            return env.trim();
+        }
         return isCloud() ? "0.0.0.0" : "127.0.0.1";
     }
 

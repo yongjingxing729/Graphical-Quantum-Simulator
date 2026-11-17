@@ -1,6 +1,7 @@
 # 构建产物
 backend/build/
 build/
+prebuilt/
 *.class
 
 # Python

@@ -6,14 +6,14 @@
 # ============================================================
 
 # ---- 构建阶段：编译后端 + 上游 Strange 源码 ----
-FROM eclipse-temurin:17-jdk AS build
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 COPY . .
 # 用 bash 显式执行，避免 Windows 下文件丢失可执行位导致的权限问题
 RUN bash build.sh
 
 # ---- 运行阶段：仅保留运行时所需产物 ----
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 COPY --from=build /app/backend/build/classes ./backend/build/classes
