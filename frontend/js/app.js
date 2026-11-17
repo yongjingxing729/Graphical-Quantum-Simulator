@@ -29,8 +29,13 @@ const GATES = {
 const MIN_QUBITS = 1;
 const MAX_QUBITS = 12;
 const MIN_COLS = 1;
-const MAX_COLS = 24;
+const MAX_COLS = 10000;      // 单量子位门数上限（一列最多一个门 / 比特）
 const DEFAULT_COLS = 8;
+
+// 虚拟滚动：避免 1 万列时 DOM 爆炸，只渲染可视窗口内的列
+const COL_W = 60;            // 44px 格子 + 16px 间距
+const WINDOW_COLS = 60;      // 一次渲染的列数
+const WINDOW_BUFFER = 10;    // 预渲染缓冲列
 
 // 合法的单比特输入态（与后端保持一致）
 const INPUT_STATES = [
@@ -123,12 +128,28 @@ function updateSelectionInfo() {
 // 线路渲染
 // ============================================================
 function renderCircuit() {
-  const grid = $("circuitGrid");
-  grid.innerHTML = "";
+  renderLabels();
 
-  // 左侧比特标签 + 输入态选择
-  const labels = document.createElement("div");
-  labels.className = "wire-labels";
+  const track = $("circuitTrack");
+  const totalW = Math.max(MIN_COLS, columns.length) * COL_W;
+  const totalH = 20 + qubits * 52; // col-head(20) + 每行格子(44) + 行间距(8)
+  if (track) {
+    track.style.width = totalW + "px";
+    track.style.height = totalH + "px";
+  }
+  clampScroll();
+  renderWindow();
+
+  $("qubitCount").textContent = qubits;
+  $("colCount").textContent = columns.length;
+  renderValidation();
+}
+
+// 左侧比特标签 + 输入态选择（固定，不随列水平滚动）
+function renderLabels() {
+  const labels = $("wireLabels");
+  if (!labels) return;
+  labels.innerHTML = "";
   const lhead = document.createElement("div");
   lhead.className = "col-head";
   lhead.textContent = "输入";
@@ -157,45 +178,106 @@ function renderCircuit() {
     l.appendChild(sel);
     labels.appendChild(l);
   }
-  grid.appendChild(labels);
+}
 
-  for (let c = 0; c < columns.length; c++) {
-    const colEl = document.createElement("div");
-    colEl.className = "circuit-column";
+function computeWinStart(scrollLeft) {
+  const approx = Math.floor(scrollLeft / COL_W) - WINDOW_BUFFER;
+  const maxStart = Math.max(0, columns.length - WINDOW_COLS);
+  return Math.max(0, Math.min(approx, maxStart));
+}
 
-    const head = document.createElement("div");
-    head.className = "col-head";
-    head.textContent = "t" + c;
-    colEl.appendChild(head);
+function renderWindow() {
+  const win = $("circuitWindow");
+  if (!win) return;
+  const scroll = $("circuitScroll");
+  const start = computeWinStart(scroll ? scroll.scrollLeft : 0);
+  const end = Math.min(columns.length, start + WINDOW_COLS);
+  win.innerHTML = "";
+  win.style.transform = `translateX(${start * COL_W}px)`;
+  for (let c = start; c < end; c++) {
+    win.appendChild(renderColumn(c));
+  }
+}
 
-    for (let w = 0; w < qubits; w++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      const gate = findGateAt(c, w);
-      if (gate) {
-        cell.classList.add("has-gate");
-        applyRole(cell, gate, w);
-        cell.title = describeGate(gate);
-      } else if (isConnector(c, w)) {
-        cell.classList.add("connector");
-        cell.title = "连接线";
-      } else {
-        cell.classList.add("empty");
-      }
-      if (pending && pending.col === c && pending.wires.includes(w)) {
-        cell.classList.add("pending-hint");
-      }
-      cell.dataset.col = c;
-      cell.dataset.wire = w;
-      cell.addEventListener("click", () => onCellClick(c, w));
-      colEl.appendChild(cell);
+function renderColumn(c) {
+  const colEl = document.createElement("div");
+  colEl.className = "circuit-column";
+
+  const head = document.createElement("div");
+  head.className = "col-head";
+  head.textContent = "t" + c;
+  colEl.appendChild(head);
+
+  for (let w = 0; w < qubits; w++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    const gate = findGateAt(c, w);
+    if (gate) {
+      cell.classList.add("has-gate");
+      applyRole(cell, gate, w);
+      cell.title = describeGate(gate);
+    } else if (isConnector(c, w)) {
+      cell.classList.add("connector");
+      cell.title = "连接线";
+    } else {
+      cell.classList.add("empty");
     }
-    grid.appendChild(colEl);
+    if (pending && pending.col === c && pending.wires.includes(w)) {
+      cell.classList.add("pending-hint");
+    }
+    cell.dataset.col = c;
+    cell.dataset.wire = w;
+    cell.addEventListener("click", () => onCellClick(c, w));
+    colEl.appendChild(cell);
   }
 
-  $("qubitCount").textContent = qubits;
-  $("colCount").textContent = columns.length;
-  renderValidation();
+  // 列后「+」：点击插入一个空列（空门），用于对齐/留白
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.className = "insert-plus";
+  plus.title = "在此列后插入一个空列";
+  plus.textContent = "+";
+  plus.addEventListener("click", (e) => {
+    e.stopPropagation();
+    insertColumnAfter(c);
+  });
+  colEl.appendChild(plus);
+
+  return colEl;
+}
+
+function clampScroll() {
+  const scroll = $("circuitScroll");
+  if (!scroll) return;
+  const maxLeft = Math.max(0, columns.length * COL_W - scroll.clientWidth);
+  if (scroll.scrollLeft > maxLeft) {
+    scroll.scrollLeft = maxLeft;
+  }
+}
+
+let scrollRaf = 0;
+function onScroll() {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    renderWindow();
+  });
+}
+
+function scrollToColumn(c) {
+  const scroll = $("circuitScroll");
+  if (!scroll) return;
+  const maxLeft = Math.max(0, columns.length * COL_W - scroll.clientWidth);
+  const target = Math.max(0, Math.min(c * COL_W, maxLeft));
+  scroll.scrollLeft = target;
+  renderWindow();
+}
+
+function scrollToEnd() {
+  const scroll = $("circuitScroll");
+  if (!scroll) return;
+  scroll.scrollLeft = Math.max(0, columns.length * COL_W - scroll.clientWidth);
+  renderWindow();
 }
 
 function findGateAt(col, wire) {
@@ -332,7 +414,7 @@ function restore(s) {
 
 function mutate(fn) {
   undoStack.push(snapshot());
-  if (undoStack.length > 50) undoStack.shift();
+  if (undoStack.length > 30) undoStack.shift();
   fn();
   renderCircuit();
 }
@@ -369,6 +451,44 @@ function setCols(n) {
       columns = columns.slice(0, next);
     }
   });
+}
+
+// 在指定列之后插入一个空列（空门，用于对齐/留白）
+function insertColumnAfter(colIndex) {
+  if (columns.length >= MAX_COLS) {
+    showHint(`列数已达上限 ${MAX_COLS}（即单量子位门数上限）`);
+    return;
+  }
+  mutate(() => {
+    columns.splice(colIndex + 1, 0, []);
+  });
+  scrollToColumn(colIndex + 1);
+}
+
+// 批量：一次追加 N 个空列（放在末尾）
+function addColsBatch(n) {
+  const room = MAX_COLS - columns.length;
+  if (room <= 0) {
+    showHint(`列数已达上限 ${MAX_COLS}`);
+    return;
+  }
+  const count = Math.max(1, Math.min(Math.floor(n || 1), room));
+  mutate(() => {
+    for (let i = 0; i < count; i++) {
+      columns.push([]);
+    }
+  });
+  scrollToEnd();
+}
+
+// 批量：一次增加 N 个量子比特
+function addQubitsBatch(n) {
+  setQubits(qubits + Math.max(1, Math.floor(n || 1)));
+}
+
+function showHint(msg) {
+  const el = $("selectionInfo");
+  if (el) el.textContent = msg;
 }
 
 function clearCircuit() {
@@ -772,6 +892,27 @@ function bindEvents() {
   $("clearBtn").addEventListener("click", clearCircuit);
   $("undoBtn").addEventListener("click", undo);
   $("runBtn").addEventListener("click", runCircuit);
+
+  // 批量操作
+  const batchQubits = $("batchQubits");
+  const batchCols = $("batchCols");
+  if ($("applyAddQubits")) {
+    $("applyAddQubits").addEventListener("click", () =>
+      addQubitsBatch(parseInt(batchQubits.value, 10))
+    );
+  }
+  if ($("applyAddCols")) {
+    $("applyAddCols").addEventListener("click", () =>
+      addColsBatch(parseInt(batchCols.value, 10))
+    );
+  }
+
+  // 虚拟滚动
+  const scrollEl = $("circuitScroll");
+  if (scrollEl) {
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+  }
+
   document.querySelectorAll("[data-preset]").forEach((b) =>
     b.addEventListener("click", () => applyPreset(b.dataset.preset))
   );

@@ -32,6 +32,9 @@ public final class AppConfig {
     /** 单次线路允许的最大量子比特数（避免指数级内存爆炸）。 */
     public static final int MAX_QUBITS = 12;
 
+    /** 单量子位可使用的最大门数（即最大时间步数；一列最多一个门 / 比特）。 */
+    public static final int MAX_STEPS = 10000;
+
     private AppConfig() {
     }
 

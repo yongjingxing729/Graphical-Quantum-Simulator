@@ -75,6 +75,13 @@
           <span id="colCount" class="counter">8</span>
           <button id="incCol" class="btn" title="增加列">+</button>
         </div>
+        <div class="toolbar-group batch">
+          <label>批量</label>
+          <input id="batchQubits" class="batch-input" type="number" min="1" max="11" step="1" value="1" title="一次增加的比特数" />
+          <button id="applyAddQubits" class="btn" title="批量增加量子比特">加比特</button>
+          <input id="batchCols" class="batch-input" type="number" min="1" max="10000" step="1" value="10" title="一次追加的空列数" />
+          <button id="applyAddCols" class="btn" title="批量追加空列（门）">加列</button>
+        </div>
         <div class="toolbar-group presets">
           <label>示例</label>
           <button class="btn" data-preset="bell">Bell 态</button>
@@ -88,8 +95,13 @@
         </div>
       </div>
 
-      <div class="circuit-scroll">
-        <div id="circuitGrid" class="circuit-grid"></div>
+      <div class="circuit-area">
+        <div id="wireLabels" class="wire-labels"></div>
+        <div id="circuitScroll" class="circuit-scroll">
+          <div id="circuitTrack" class="circuit-track">
+            <div id="circuitWindow" class="circuit-window"></div>
+          </div>
+        </div>
       </div>
 
       <div id="validationPanel" class="validation-panel" hidden></div>

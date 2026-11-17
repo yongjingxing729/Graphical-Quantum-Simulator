@@ -252,6 +252,10 @@ public final class CircuitRunner {
         if (!(stepsRaw instanceof List)) {
             throw new CircuitException("'steps' 必须是数组");
         }
+        if (((List<?>) stepsRaw).size() > AppConfig.MAX_STEPS) {
+            throw new CircuitException(
+                "线路时间步数超过上限 " + AppConfig.MAX_STEPS + "（单量子位门数上限）");
+        }
         int stepIndex = 0;
         for (Object stepObj : (List<Object>) stepsRaw) {
             if (!(stepObj instanceof Map)) {

@@ -209,6 +209,19 @@ public final class CircuitRunnerTest {
                 () -> CircuitRunner.run(request(13, 0)));
         });
 
+        TestRunner.test("steps over MAX_STEPS throws", () -> {
+            List<Object> many = new ArrayList<>();
+            for (int i = 0; i < 10001; i++) {
+                many.add(new LinkedHashMap<>());
+            }
+            Map<String, Object> req = new LinkedHashMap<>();
+            req.put("qubits", 1);
+            req.put("shots", 0);
+            req.put("steps", many);
+            TestRunner.assertThrows("too many steps", CircuitException.class,
+                () -> CircuitRunner.run(req));
+        });
+
         TestRunner.test("invalid shots", () -> {
             TestRunner.assertThrows("negative shots", CircuitException.class,
                 () -> CircuitRunner.run(request(1, -1)));
