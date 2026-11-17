@@ -64,23 +64,31 @@
     <section class="workspace">
       <div class="toolbar">
         <div class="toolbar-group">
-          <label>量子比特</label>
+          <label>量子位</label>
           <button id="decQubit" class="btn" title="减少比特">−</button>
-          <span id="qubitCount" class="counter">2</span>
+          <input id="qubitCount" class="count-input" type="number" min="1" max="12" step="1" value="2" title="输入目标量子位数" />
           <button id="incQubit" class="btn" title="增加比特">+</button>
         </div>
         <div class="toolbar-group">
-          <label>列（时间步）</label>
+          <label>列数</label>
           <button id="decCol" class="btn" title="减少列">−</button>
-          <span id="colCount" class="counter">8</span>
+          <input id="colCount" class="count-input" type="number" min="1" max="10000" step="1" value="8" title="输入目标列数（时间步数）" />
           <button id="incCol" class="btn" title="增加列">+</button>
         </div>
-        <div class="toolbar-group batch">
-          <label>批量</label>
-          <input id="batchQubits" class="batch-input" type="number" min="1" max="11" step="1" value="1" title="一次增加的比特数" />
-          <button id="applyAddQubits" class="btn" title="批量增加量子比特">加比特</button>
-          <input id="batchCols" class="batch-input" type="number" min="1" max="10000" step="1" value="10" title="一次追加的空列数" />
-          <button id="applyAddCols" class="btn" title="批量追加空列（门）">加列</button>
+        <div class="toolbar-group">
+          <label>加列</label>
+          <input id="batchCols" class="count-input" type="number" min="1" max="10000" step="1" value="1" title="在末尾追加的空列数" />
+          <button id="applyAddCols" class="btn" title="追加空列">追加</button>
+        </div>
+        <div class="toolbar-group">
+          <label>删列</label>
+          <select id="delMode" class="batch-select" title="删除方式">
+            <option value="tail">后几列</option>
+            <option value="head">前几列</option>
+            <option value="range">范围 a,b</option>
+          </select>
+          <input id="delInput" class="count-input del-input" type="text" placeholder="2 或 1,4" title="删除数量或范围" />
+          <button id="applyDelCols" class="btn" title="删除列">删除</button>
         </div>
         <div class="toolbar-group presets">
           <label>示例</label>

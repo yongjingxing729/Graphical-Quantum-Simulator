@@ -54,12 +54,14 @@ let inputs = Array.from({ length: qubits }, () => "0"); // 每个比特的初始
 let selectedGate = null;          // 当前选中的门类型（string|null）
 let pending = null;               // 多比特门放置中：{type, col, wires:[]}
 let undoStack = [];
+let dividers = new Set();        // 列右侧分隔线：Set<列索引>，d 表示“第 d 列之后”有一条竖线
 
 // ---- DOM 引用 ----
 const $ = (id) => document.getElementById(id);
 
 function init() {
   buildPalette();
+  applyDividerColor();
   bindEvents();
   renderCircuit();
   loadMeta();
@@ -146,8 +148,8 @@ function renderCircuit() {
   clampScroll();
   renderWindow();
 
-  $("qubitCount").textContent = qubits;
-  $("colCount").textContent = columns.length;
+  $("qubitCount").value = qubits;
+  $("colCount").value = columns.length;
   renderValidation();
 }
 
@@ -208,10 +210,21 @@ function renderWindow() {
 function renderColumn(c) {
   const colEl = document.createElement("div");
   colEl.className = "circuit-column";
+  const hasMeasure = (columns[c] || []).some((g) => g.type === "M");
+  if (hasMeasure) {
+    colEl.classList.add("has-measure");
+  }
 
   const head = document.createElement("div");
   head.className = "col-head";
   head.textContent = "t" + c;
+  if (hasMeasure) {
+    const badge = document.createElement("span");
+    badge.className = "measure-badge";
+    badge.textContent = "⏼";
+    badge.title = "测量列：线路在此处被测量（坍缩/断电）";
+    head.appendChild(badge);
+  }
   colEl.appendChild(head);
 
   for (let w = 0; w < qubits; w++) {
@@ -237,6 +250,14 @@ function renderColumn(c) {
     colEl.appendChild(cell);
   }
 
+  // 列间分隔线（右键可增删）
+  if (dividers.has(c)) {
+    const divider = document.createElement("span");
+    divider.className = "col-divider";
+    divider.title = "分隔线（右键该列可删除）";
+    colEl.appendChild(divider);
+  }
+
   // 列后「+」：点击插入一个空列（空门），用于对齐/留白
   const plus = document.createElement("button");
   plus.type = "button";
@@ -248,6 +269,21 @@ function renderColumn(c) {
     insertColumnAfter(c);
   });
   colEl.appendChild(plus);
+
+  // 删除这一列
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "delete-col";
+  del.title = "删除这一列";
+  del.textContent = "×";
+  del.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeColumnAt(c);
+  });
+  colEl.appendChild(del);
+
+  // 右键菜单：分隔线 / 插列 / 删列
+  colEl.addEventListener("contextmenu", (e) => showColumnContextMenu(e, c));
 
   return colEl;
 }
@@ -417,13 +453,19 @@ function currentAngle() {
 // 撤销 / 快照
 // ============================================================
 function snapshot() {
-  return { qubits, columns: JSON.parse(JSON.stringify(columns)), inputs: inputs.slice() };
+  return {
+    qubits,
+    columns: JSON.parse(JSON.stringify(columns)),
+    inputs: inputs.slice(),
+    dividers: new Set(dividers),
+  };
 }
 
 function restore(s) {
   qubits = s.qubits;
   columns = s.columns;
   inputs = s.inputs.slice();
+  dividers = new Set(s.dividers || []);
   pending = null;
 }
 
@@ -447,6 +489,7 @@ function undo() {
 // 工具栏
 // ============================================================
 function setQubits(n) {
+  if (!Number.isFinite(n)) return;
   const next = Math.max(MIN_QUBITS, Math.min(MAX_QUBITS, n));
   mutate(() => {
     qubits = next;
@@ -458,12 +501,14 @@ function setQubits(n) {
 }
 
 function setCols(n) {
+  if (!Number.isFinite(n)) return;
   const next = Math.max(MIN_COLS, Math.min(MAX_COLS, n));
   mutate(() => {
     if (next > columns.length) {
       while (columns.length < next) columns.push([]);
     } else {
       columns = columns.slice(0, next);
+      dividers = new Set([...dividers].filter((d) => d < next));
     }
   });
 }
@@ -476,6 +521,7 @@ function insertColumnAfter(colIndex) {
   }
   mutate(() => {
     columns.splice(colIndex + 1, 0, []);
+    adjustDividersOnInsert(colIndex + 1);
   });
   scrollToColumn(colIndex + 1);
 }
@@ -496,9 +542,100 @@ function addColsBatch(n) {
   scrollToEnd();
 }
 
-// 批量：一次增加 N 个量子比特
-function addQubitsBatch(n) {
-  setQubits(qubits + Math.max(1, Math.floor(n || 1)));
+// 删除指定一列
+function removeColumnAt(colIndex) {
+  if (columns.length <= MIN_COLS) {
+    showHint(`至少保留 ${MIN_COLS} 列`);
+    return;
+  }
+  mutate(() => {
+    columns.splice(colIndex, 1);
+    adjustDividersOnRemove([colIndex]);
+  });
+}
+
+// 批量删除列：tail=后几列，head=前几列，range=范围 a,b（闭区间）
+function deleteColsBatch(mode, raw) {
+  const text = String(raw == null ? "" : raw).trim();
+  const maxRemove = columns.length - MIN_COLS;
+  if (maxRemove <= 0) {
+    showHint(`至少保留 ${MIN_COLS} 列，无法删除`);
+    return;
+  }
+
+  let indices = [];
+  if (mode === "tail") {
+    const n = parseInt(text, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      showHint("请输入要删除的列数（正整数）");
+      return;
+    }
+    const k = Math.min(n, maxRemove);
+    for (let i = columns.length - k; i < columns.length; i++) indices.push(i);
+  } else if (mode === "head") {
+    const n = parseInt(text, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      showHint("请输入要删除的列数（正整数）");
+      return;
+    }
+    const k = Math.min(n, maxRemove);
+    for (let i = 0; i < k; i++) indices.push(i);
+  } else {
+    const parts = text.split(/[,，\-~]/).map((s) => parseInt(s.trim(), 10));
+    if (parts.length < 2 || parts.some((x) => !Number.isFinite(x))) {
+      showHint("范围格式：a,b 或 a-b（如 1,4，删除第 1~4 列）");
+      return;
+    }
+    let a = Math.max(0, parts[0]);
+    let b = Math.min(columns.length - 1, parts[1]);
+    if (a > b) { const t = a; a = b; b = t; }
+    const k = Math.min(b - a + 1, maxRemove);
+    for (let i = a; i < a + k; i++) indices.push(i);
+  }
+
+  if (indices.length === 0) {
+    showHint("没有要删除的列");
+    return;
+  }
+  mutate(() => {
+    const rem = new Set(indices);
+    columns = columns.filter((_, i) => !rem.has(i));
+    adjustDividersOnRemove(indices);
+  });
+  showHint(`已删除 ${indices.length} 列`);
+}
+
+// 插入列后，其后（>= at）的分隔线整体右移一位
+function adjustDividersOnInsert(at) {
+  const nd = new Set();
+  dividers.forEach((d) => nd.add(d >= at ? d + 1 : d));
+  dividers = nd;
+}
+
+// 删除若干列后，重算分隔线位置（被删列之后的分隔线一并删除，其余左移）
+function adjustDividersOnRemove(removedIndices) {
+  const rem = new Set(removedIndices);
+  const nd = new Set();
+  dividers.forEach((d) => {
+    if (rem.has(d)) return; // 第 d 列被删，其后的分隔线删除
+    let before = 0;
+    rem.forEach((r) => { if (r < d) before++; });
+    nd.add(d - before);
+  });
+  dividers = nd;
+}
+
+// 切换某列右侧的分隔线
+function toggleDivider(colIndex) {
+  const nd = new Set(dividers);
+  if (nd.has(colIndex)) nd.delete(colIndex);
+  else nd.add(colIndex);
+  mutate(() => {
+    dividers = nd;
+  });
+  showHint(dividers.has(colIndex)
+    ? `已在 t${colIndex} 右侧添加分隔线`
+    : `已删除 t${colIndex} 右侧的分隔线`);
 }
 
 function showHint(msg) {
@@ -506,9 +643,72 @@ function showHint(msg) {
   if (el) el.textContent = msg;
 }
 
+// ============================================================
+// 分隔线 / 右键菜单 / 颜色自适应
+// ============================================================
+let contextMenu = null;
+
+function ensureContextMenu() {
+  if (!contextMenu) {
+    contextMenu = document.createElement("div");
+    contextMenu.className = "context-menu";
+    document.body.appendChild(contextMenu);
+  }
+  return contextMenu;
+}
+
+function hideContextMenu() {
+  if (contextMenu) contextMenu.hidden = true;
+}
+
+function showColumnContextMenu(e, colIndex) {
+  e.preventDefault();
+  const menu = ensureContextMenu();
+  menu.innerHTML = "";
+  menu.hidden = false;
+
+  const hasDivider = dividers.has(colIndex);
+  const dividerItem = document.createElement("div");
+  dividerItem.className = "context-item";
+  dividerItem.textContent = hasDivider ? "删除右边的分隔线" : "在右边添加分隔线";
+  dividerItem.addEventListener("click", () => { toggleDivider(colIndex); hideContextMenu(); });
+  menu.appendChild(dividerItem);
+
+  const insertItem = document.createElement("div");
+  insertItem.className = "context-item";
+  insertItem.textContent = "在右边插入空列";
+  insertItem.addEventListener("click", () => { insertColumnAfter(colIndex); hideContextMenu(); });
+  menu.appendChild(insertItem);
+
+  const delItem = document.createElement("div");
+  delItem.className = "context-item danger";
+  delItem.textContent = "删除这一列";
+  delItem.addEventListener("click", () => { removeColumnAt(colIndex); hideContextMenu(); });
+  menu.appendChild(delItem);
+
+  const mw = menu.offsetWidth || 170;
+  const mh = menu.offsetHeight || 120;
+  menu.style.left = Math.max(4, Math.min(e.clientX, window.innerWidth - mw - 8)) + "px";
+  menu.style.top = Math.max(4, Math.min(e.clientY, window.innerHeight - mh - 8)) + "px";
+}
+
+// 根据电路区背景明暗决定分隔线颜色：深色背景→白线，浅色背景→黑线
+function applyDividerColor() {
+  const el = document.querySelector(".circuit-area") || document.body;
+  const bg = getComputedStyle(el).backgroundColor;
+  const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  let lum = 0.5;
+  if (m) {
+    lum = (0.299 * (+m[1]) + 0.587 * (+m[2]) + 0.114 * (+m[3])) / 255;
+  }
+  const color = lum < 0.5 ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.45)";
+  document.documentElement.style.setProperty("--divider-color", color);
+}
+
 function clearCircuit() {
   mutate(() => {
     columns = Array.from({ length: DEFAULT_COLS }, () => []);
+    dividers = new Set();
     pending = null;
     selectedGate = null;
     refreshPaletteSelection();
@@ -538,6 +738,7 @@ function applyPreset(name) {
     qubits = q;
     inputs = Array.from({ length: q }, () => "0");
     columns = padColumns(cols);
+    dividers = new Set();
     pending = null;
   });
   updateSelectionInfo();
@@ -912,19 +1113,29 @@ function bindEvents() {
   $("undoBtn").addEventListener("click", undo);
   $("runBtn").addEventListener("click", runCircuit);
 
-  // 批量操作
-  const batchQubits = $("batchQubits");
+  // 数量输入框：输入目标数量后（回车/失焦）生效
+  const qubitInput = $("qubitCount");
+  const colInput = $("colCount");
+  if (qubitInput) qubitInput.addEventListener("change", () => setQubits(parseInt(qubitInput.value, 10)));
+  if (colInput) colInput.addEventListener("change", () => setCols(parseInt(colInput.value, 10)));
+
+  // 批量加列
   const batchCols = $("batchCols");
-  if ($("applyAddQubits")) {
-    $("applyAddQubits").addEventListener("click", () =>
-      addQubitsBatch(parseInt(batchQubits.value, 10))
-    );
-  }
-  if ($("applyAddCols")) {
+  if ($("applyAddCols") && batchCols) {
     $("applyAddCols").addEventListener("click", () =>
       addColsBatch(parseInt(batchCols.value, 10))
     );
   }
+
+  // 批量删列
+  if ($("applyDelCols")) {
+    $("applyDelCols").addEventListener("click", () =>
+      deleteColsBatch($("delMode").value, $("delInput").value)
+    );
+  }
+
+  // 右键菜单：点击其它地方关闭
+  document.addEventListener("click", hideContextMenu);
 
   // 虚拟滚动
   const scrollEl = $("circuitScroll");
@@ -937,6 +1148,7 @@ function bindEvents() {
   );
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      hideContextMenu();
       selectedGate = null;
       pending = null;
       refreshPaletteSelection();
