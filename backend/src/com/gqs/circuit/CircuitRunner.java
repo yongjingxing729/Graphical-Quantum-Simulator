@@ -66,12 +66,13 @@ public final class CircuitRunner {
         }
 
         List<Step> userSteps = buildUserSteps(req.get("steps"), qubits);
+        List<Integer> userCols = extractStepCols(req.get("steps"), userSteps.size());
         for (int i = 0; i < userSteps.size(); i++) {
             try {
                 program.addStep(userSteps.get(i));
             } catch (IllegalArgumentException e) {
                 throw new CircuitException(
-                    "列 t" + i + " 无效：" + e.getMessage()
+                    "列 t" + userCols.get(i) + " 无效：" + e.getMessage()
                         + "（量子测量不可逆：被测比特之后不能再施加会产生叠加态的 H 或 CNOT 目标）");
             }
         }
@@ -262,17 +263,18 @@ public final class CircuitRunner {
                 throw new CircuitException("列 t" + stepIndex + " 必须是对象");
             }
             Map<String, Object> stepMap = (Map<String, Object>) stepObj;
+            int col = intOf(stepMap.get("col"), stepIndex);
             Step step = new Step();
             Object gatesRaw = stepMap.get("gates");
             if (gatesRaw != null) {
                 if (!(gatesRaw instanceof List)) {
-                    throw new CircuitException("列 t" + stepIndex + " 的 gates 必须是数组");
+                    throw new CircuitException("列 t" + col + " 的 gates 必须是数组");
                 }
                 int gateIndex = 0;
                 for (Object gObj : (List<Object>) gatesRaw) {
                     if (!(gObj instanceof Map)) {
                         throw new CircuitException(
-                            "列 t" + stepIndex + " 第 " + gateIndex + " 个门必须是对象");
+                            "列 t" + col + " 第 " + gateIndex + " 个门必须是对象");
                     }
                     Map<String, Object> g = (Map<String, Object>) gObj;
                     String type = str(g.get("type"));
@@ -280,16 +282,16 @@ public final class CircuitRunner {
                     for (int t : targets) {
                         if (t < 0 || t >= qubits) {
                             throw new CircuitException(
-                                "门 '" + type + "' 的比特下标 " + t
+                                "列 t" + col + "，门 '" + type + "' 的比特下标 " + t
                                     + " 超出范围 [0, " + (qubits - 1) + "]");
                         }
                     }
                     double angle = doubleOf(g.get("angle"), 0.0);
                     try {
                         step.addGate(GateFactory.create(type, targets, angle));
-                    } catch (IllegalArgumentException e) {
+                    } catch (IllegalArgumentException | CircuitException e) {
                         throw new CircuitException(
-                            "列 t" + stepIndex + "，门 '" + type + "'：" + e.getMessage());
+                            "列 t" + col + "，门 '" + type + "'：" + e.getMessage());
                     }
                     gateIndex++;
                 }
@@ -303,6 +305,25 @@ public final class CircuitRunner {
     // ------------------------------------------------------------------
     // 工具方法
     // ------------------------------------------------------------------
+
+    /** 从原始 steps 里提取每步的真实列号（缺省时回退为序号），供错误提示使用。 */
+    @SuppressWarnings("unchecked")
+    private static List<Integer> extractStepCols(Object stepsRaw, int size) {
+        List<Integer> cols = new ArrayList<>(size);
+        if (stepsRaw instanceof List) {
+            for (Object o : (List<Object>) stepsRaw) {
+                if (o instanceof Map) {
+                    cols.add(intOf(((Map<String, Object>) o).get("col"), cols.size()));
+                } else {
+                    cols.add(cols.size());
+                }
+            }
+        }
+        while (cols.size() < size) {
+            cols.add(cols.size());
+        }
+        return cols;
+    }
 
     private static void putState(
             Map<String, Object> out, Complex[] sv, int qubits, String stateKey, String probKey) {

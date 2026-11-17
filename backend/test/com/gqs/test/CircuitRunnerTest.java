@@ -200,6 +200,26 @@ public final class CircuitRunnerTest {
                 () -> CircuitRunner.run(request(2, 0, step(gate("X", 5)))));
         });
 
+        TestRunner.test("error message references provided col", () -> {
+            Map<String, Object> step = new LinkedHashMap<>();
+            step.put("col", 5);
+            Map<String, Object> gate = new LinkedHashMap<>();
+            gate.put("type", "X");
+            gate.put("targets", List.of(99));
+            step.put("gates", List.of(gate));
+            Map<String, Object> req = new LinkedHashMap<>();
+            req.put("qubits", 2);
+            req.put("shots", 0);
+            req.put("steps", List.of(step));
+            try {
+                CircuitRunner.run(req);
+                throw new AssertionError("应当抛出异常");
+            } catch (CircuitException e) {
+                TestRunner.assertTrue("message 含 t5: " + e.getMessage(),
+                    e.getMessage().contains("t5"));
+            }
+        });
+
         // ---------------- 错误路径 ----------------
 
         TestRunner.test("invalid qubit count", () -> {

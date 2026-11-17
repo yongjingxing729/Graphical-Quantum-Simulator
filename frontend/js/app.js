@@ -116,6 +116,12 @@ function updateSelectionInfo() {
     const meta = GATES[selectedGate];
     if (meta.arity === 1) {
       el.textContent = `已选择 ${meta.label}，点击线路格子放置${meta.angle ? "（使用下方角度 θ）" : ""}`;
+    } else if (selectedGate === "CNOT") {
+      el.textContent = "已选择 CNOT：第 1 次点击 = 控制位(●)，第 2 次点击 = 目标位(⊕)";
+    } else if (selectedGate === "TOFFOLI") {
+      el.textContent = "已选择 Toffoli：前 2 次点击 = 控制位(●)，第 3 次点击 = 目标位(⊕)";
+    } else if (selectedGate === "CZ" || selectedGate === "SWAP") {
+      el.textContent = `已选择 ${meta.label}：点击两个要操作的比特（对称）`;
     } else {
       el.textContent = `已选择 ${meta.label}（${meta.arity} 比特）：点击第一个比特`;
     }
@@ -333,8 +339,17 @@ function describeGate(g) {
 // ============================================================
 function onCellClick(col, wire) {
   if (!selectedGate) {
-    // 未选择门：点击已有门则删除
-    if (findGateAt(col, wire)) {
+    // 未选择门：点击已有门则删除（多比特门只能点锚点格删除，避免误删整扇门）
+    const g = findGateAt(col, wire);
+    if (g) {
+      const arity = GATES[g.type] ? GATES[g.type].arity : 1;
+      if (arity >= 2 && g.targets[0] !== wire) {
+        showHint(
+          `多比特门 ${GATES[g.type].label} 占用了多个量子位，点击非锚点格不删除；` +
+            `请点击锚点格 q${g.targets[0]} 删除整扇门`
+        );
+        return;
+      }
       mutate(() => removeGateAt(col, wire));
     }
     return;
@@ -358,7 +373,7 @@ function onCellClick(col, wire) {
   } else if (pending.col !== col) {
     pending = { type: selectedGate, col, wires: [wire] };
   } else if (pending.wires.includes(wire)) {
-    // 重复点击同一比特：忽略
+    showHint(`q${wire} 已在本次选择中，请点击其它比特`);
   } else {
     pending.wires.push(wire);
   }
@@ -538,15 +553,19 @@ function padColumns(cols) {
 // 运行模拟
 // ============================================================
 async function runCircuit() {
-  const steps = columns
-    .filter((c) => c.length > 0)
-    .map((c) => ({
-      gates: c.map((g) => {
-        const o = { type: g.type, targets: g.targets };
-        if (g.angle != null) o.angle = g.angle;
-        return o;
-      }),
-    }));
+  const steps = [];
+  columns.forEach((c, idx) => {
+    if (c.length > 0) {
+      steps.push({
+        col: idx,
+        gates: c.map((g) => {
+          const o = { type: g.type, targets: g.targets };
+          if (g.angle != null) o.angle = g.angle;
+          return o;
+        }),
+      });
+    }
+  });
 
   const shots = parseInt($("shotsInput").value, 10) || 0;
   const body = { qubits, shots, inputs: inputs.slice(0, qubits), steps };
