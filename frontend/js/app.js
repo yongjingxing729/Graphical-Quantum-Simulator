@@ -140,7 +140,7 @@ function renderCircuit() {
 
   const track = $("circuitTrack");
   const totalW = Math.max(MIN_COLS, columns.length) * COL_W;
-  const totalH = 20 + qubits * 52; // col-head(20) + 每行格子(44) + 行间距(8)
+  const totalH = 20 + qubits * 52 + 24; // col-head(20) + 行(44+8) + 上下各 12px 给「+ / −」按钮
   if (track) {
     track.style.width = totalW + "px";
     track.style.height = totalH + "px";
@@ -275,7 +275,7 @@ function renderColumn(c) {
   del.type = "button";
   del.className = "delete-col";
   del.title = "删除这一列";
-  del.textContent = "×";
+  del.textContent = "−";
   del.addEventListener("click", (e) => {
     e.stopPropagation();
     removeColumnAt(c);

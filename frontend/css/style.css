@@ -207,13 +207,13 @@ code { background: var(--bg-soft); padding: 1px 5px; border-radius: 4px; font-fa
 .circuit-track { position: relative; }
 .circuit-window {
   position: absolute;
-  top: 0;
+  top: 12px;
   left: 0;
   display: flex;
   gap: 16px;
 }
 
-.wire-labels { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding-right: 10px; }
+.wire-labels { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding-right: 10px; padding-top: 12px; }
 .wire-label {
   height: 44px;
   display: flex;
@@ -399,9 +399,9 @@ code { background: var(--bg-soft); padding: 1px 5px; border-radius: 4px; font-fa
 /* ---------- 列后插入空列（“+”） ---------- */
 .insert-plus {
   position: absolute;
-  right: -11px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 18px;
   height: 18px;
   padding: 0;
@@ -422,8 +422,9 @@ code { background: var(--bg-soft); padding: 1px 5px; border-radius: 4px; font-fa
 /* ---------- 删除列按钮 ---------- */
 .delete-col {
   position: absolute;
-  right: -11px;
-  bottom: 2px;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 18px;
   height: 18px;
   padding: 0;
