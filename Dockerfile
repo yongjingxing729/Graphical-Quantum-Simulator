@@ -22,6 +22,10 @@ COPY --from=build /app/strange.version ./strange.version
 COPY --from=build /app/NOTICE ./NOTICE
 COPY --from=build /app/THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
 
+# 以非 root 用户运行（工程化安全加固）
+RUN useradd --create-home --shell /usr/sbin/nologin appuser
+USER appuser
+
 ENV QSIM_MODE=cloud
 ENV QSIM_PORT=8080
 EXPOSE 8080

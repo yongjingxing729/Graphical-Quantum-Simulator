@@ -18,6 +18,8 @@ import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * 基于 JDK 内置 {@link HttpServer} 的轻量 Web 服务器。
@@ -34,6 +36,13 @@ public final class WebServer {
         this.frontendRoot = Paths.get(AppConfig.frontendDir()).toAbsolutePath().normalize();
         this.server = HttpServer.create(
             new InetSocketAddress(AppConfig.bindHost(), AppConfig.port()), 0);
+        // 线程池：并发处理请求，避免单个慢请求阻塞其它请求
+        ThreadFactory threadFactory = r -> {
+            Thread t = new Thread(r, "gqs-http");
+            t.setDaemon(true);
+            return t;
+        };
+        this.server.setExecutor(Executors.newFixedThreadPool(8, threadFactory));
         this.server.createContext("/", this::handle);
     }
 
@@ -69,8 +78,9 @@ public final class WebServer {
         } catch (Json.JsonException je) {
             sendJson(ex, 400, error("bad_json", je.getMessage()));
         } catch (Exception e) {
-            sendJson(ex, 500, error("internal_error",
-                e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            // 完整堆栈记录到服务端日志，客户端只返回通用错误，避免泄露内部信息
+            e.printStackTrace();
+            sendJson(ex, 500, error("internal_error", "服务器内部错误"));
         } finally {
             ex.close();
         }
@@ -82,7 +92,12 @@ public final class WebServer {
 
     @SuppressWarnings("unchecked")
     private void runCircuit(HttpExchange ex) throws IOException {
-        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        byte[] raw = ex.getRequestBody().readNBytes(AppConfig.MAX_BODY_BYTES + 1);
+        if (raw.length > AppConfig.MAX_BODY_BYTES) {
+            throw new CircuitException(
+                "请求体过大（上限 " + (AppConfig.MAX_BODY_BYTES / 1024 / 1024) + "MB）");
+        }
+        String body = new String(raw, StandardCharsets.UTF_8);
         if (body.isBlank()) {
             throw new CircuitException("Request body is empty");
         }
@@ -181,6 +196,7 @@ public final class WebServer {
     private void sendJson(HttpExchange ex, int status, Object obj) throws IOException {
         byte[] bytes = Json.stringify(obj).getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        ex.getResponseHeaders().set("Cache-Control", "no-store");
         applyCommonHeaders(ex);
         ex.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
@@ -194,14 +210,23 @@ public final class WebServer {
     }
 
     /**
-     * 公共响应头：云端模式下开放跨域，便于将前端与后端分离部署。
+     * 公共响应头：安全加固（nosniff / 防点击劫持 / CSP / Referrer）。
+     * CORS 仅在显式配置 QSIM_CORS_ORIGIN 时按该来源开启（不用通配符 *）。
      */
     private void applyCommonHeaders(HttpExchange ex) {
         ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        if (AppConfig.isCloud()) {
-            ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        ex.getResponseHeaders().set("X-Frame-Options", "DENY");
+        ex.getResponseHeaders().set("Referrer-Policy", "no-referrer");
+        ex.getResponseHeaders().set("Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+                + "img-src 'self' data:; connect-src 'self'; "
+                + "frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+        String origin = AppConfig.corsOrigin();
+        if (origin != null) {
+            ex.getResponseHeaders().set("Access-Control-Allow-Origin", origin);
             ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+            ex.getResponseHeaders().set("Vary", "Origin");
         }
     }
 }

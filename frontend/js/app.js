@@ -978,22 +978,27 @@ async function loadUpstream() {
     const r = await fetch("/api/upstream");
     const u = await r.json();
     banner.hidden = false;
+    // 服务器返回的字符串统一转义后再进 innerHTML，防注入
+    const pinC = escapeHtml(short(u.pinnedCommit));
+    const pinV = escapeHtml(u.pinnedVersion);
+    const latestC = escapeHtml(short(u.latestCommit));
+    const latestV = u.latestVersion ? escapeHtml(u.latestVersion) : "";
     if (u.hasUpdate === true) {
       banner.className = "banner warn";
       banner.innerHTML =
         `🔔 <strong>开发者提醒：上游开源仓库 Strange 有新变更</strong><br>` +
-        `锁定 commit <code>${short(u.pinnedCommit)}</code>（版本 ${u.pinnedVersion}）→ 最新 commit ` +
-        `<code>${short(u.latestCommit)}</code>${u.latestVersion ? "（版本 " + u.latestVersion + "）" : ""}。<br>` +
+        `锁定 commit <code>${pinC}</code>（版本 ${pinV}）→ 最新 commit ` +
+        `<code>${latestC}</code>${latestV ? "（版本 " + latestV + "）" : ""}。<br>` +
         `请运行 <code>python scripts/check_upstream.py</code>，并按 README「手动更新上游代码」一节同步更新。`;
     } else if (u.hasUpdate === false) {
       banner.className = "banner ok";
       banner.innerHTML =
-        `✅ 上游 Strange 已是最新（commit <code>${short(u.pinnedCommit)}</code>，版本 ${u.pinnedVersion}）。`;
+        `✅ 上游 Strange 已是最新（commit <code>${pinC}</code>，版本 ${pinV}）。`;
     } else {
       banner.className = "banner info";
       banner.innerHTML =
-        `ℹ️ 无法连接网络检查上游更新（离线/受限网络）。锁定版本：commit <code>${short(u.pinnedCommit)}</code>，` +
-        `版本 ${u.pinnedVersion}。可运行 <code>python scripts/check_upstream.py</code> 手动检查。`;
+        `ℹ️ 无法连接网络检查上游更新（离线/受限网络）。锁定版本：commit <code>${pinC}</code>，` +
+        `版本 ${pinV}。可运行 <code>python scripts/check_upstream.py</code> 手动检查。`;
     }
   } catch (e) {
     banner.hidden = true;

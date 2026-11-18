@@ -16,6 +16,9 @@ public final class Json {
     private Json() {
     }
 
+    /** 最大嵌套深度，防止深层嵌套 JSON 触发栈溢出（DoS）。 */
+    private static final int MAX_DEPTH = 200;
+
     // ------------------------------------------------------------------
     // 解析
     // ------------------------------------------------------------------
@@ -128,10 +131,21 @@ public final class Json {
     private static final class Parser {
         private final String s;
         private int pos;
+        private int depth = 0;
 
         Parser(String s) {
             this.s = s;
             this.pos = 0;
+        }
+
+        void enter() {
+            if (++depth > MAX_DEPTH) {
+                throw new JsonException("JSON nesting too deep (max " + MAX_DEPTH + ")");
+            }
+        }
+
+        void leave() {
+            depth--;
         }
 
         boolean eof() {
@@ -175,54 +189,64 @@ public final class Json {
         }
 
         Map<String, Object> parseObject() {
-            next(); // '{'
-            Map<String, Object> m = new LinkedHashMap<>();
-            skipWhitespace();
-            if (!eof() && peek() == '}') {
-                next();
-                return m;
-            }
-            while (true) {
+            enter();
+            try {
+                next(); // '{'
+                Map<String, Object> m = new LinkedHashMap<>();
                 skipWhitespace();
-                if (eof() || peek() != '"') {
-                    throw new JsonException("Expected string key at index " + pos);
-                }
-                String key = parseString();
-                skipWhitespace();
-                if (eof() || peek() != ':') {
-                    throw new JsonException("Expected ':' at index " + pos);
-                }
-                next();
-                m.put(key, parseValue());
-                skipWhitespace();
-                char c = next();
-                if (c == '}') {
+                if (!eof() && peek() == '}') {
+                    next();
                     return m;
                 }
-                if (c != ',') {
-                    throw new JsonException("Expected ',' or '}' at index " + (pos - 1));
+                while (true) {
+                    skipWhitespace();
+                    if (eof() || peek() != '"') {
+                        throw new JsonException("Expected string key at index " + pos);
+                    }
+                    String key = parseString();
+                    skipWhitespace();
+                    if (eof() || peek() != ':') {
+                        throw new JsonException("Expected ':' at index " + pos);
+                    }
+                    next();
+                    m.put(key, parseValue());
+                    skipWhitespace();
+                    char c = next();
+                    if (c == '}') {
+                        return m;
+                    }
+                    if (c != ',') {
+                        throw new JsonException("Expected ',' or '}' at index " + (pos - 1));
+                    }
                 }
+            } finally {
+                leave();
             }
         }
 
         List<Object> parseArray() {
-            next(); // '['
-            List<Object> l = new ArrayList<>();
-            skipWhitespace();
-            if (!eof() && peek() == ']') {
-                next();
-                return l;
-            }
-            while (true) {
-                l.add(parseValue());
+            enter();
+            try {
+                next(); // '['
+                List<Object> l = new ArrayList<>();
                 skipWhitespace();
-                char c = next();
-                if (c == ']') {
+                if (!eof() && peek() == ']') {
+                    next();
                     return l;
                 }
-                if (c != ',') {
-                    throw new JsonException("Expected ',' or ']' at index " + (pos - 1));
+                while (true) {
+                    l.add(parseValue());
+                    skipWhitespace();
+                    char c = next();
+                    if (c == ']') {
+                        return l;
+                    }
+                    if (c != ',') {
+                        throw new JsonException("Expected ',' or ']' at index " + (pos - 1));
+                    }
                 }
+            } finally {
+                leave();
             }
         }
 
@@ -284,6 +308,9 @@ public final class Json {
             }
             try {
                 double d = Double.parseDouble(num);
+                if (Double.isInfinite(d) || Double.isNaN(d)) {
+                    throw new JsonException("Number out of range: " + num);
+                }
                 boolean integral = !num.contains(".") && !num.contains("e") && !num.contains("E");
                 if (integral && d == Math.floor(d) && Math.abs(d) < 9.007199254740992E15) {
                     return (long) d;

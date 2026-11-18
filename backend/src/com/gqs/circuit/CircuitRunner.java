@@ -51,6 +51,12 @@ public final class CircuitRunner {
         if (shots < 0 || shots > 100000) {
             throw new CircuitException("采样次数必须在 0 到 100000 之间");
         }
+        long shotWork = (long) shots * (1L << qubits);
+        if (shotWork > AppConfig.MAX_SHOT_WORK) {
+            throw new CircuitException(
+                "采样工作量过大（shots × 2^qubits = " + shotWork
+                    + "，超过上限 " + AppConfig.MAX_SHOT_WORK + "），请减少量子比特或采样次数");
+        }
 
         // 0) 解析输入态（默认全 |0⟩）
         List<String> inputs = parseInputs(req.get("inputs"), qubits);
@@ -287,6 +293,10 @@ public final class CircuitRunner {
                         }
                     }
                     double angle = doubleOf(g.get("angle"), 0.0);
+                    if (!Double.isFinite(angle) || Math.abs(angle) > AppConfig.MAX_ANGLE) {
+                        throw new CircuitException(
+                            "列 t" + col + "，门 '" + type + "' 的角度超出允许范围");
+                    }
                     try {
                         step.addGate(GateFactory.create(type, targets, angle));
                     } catch (IllegalArgumentException | CircuitException e) {

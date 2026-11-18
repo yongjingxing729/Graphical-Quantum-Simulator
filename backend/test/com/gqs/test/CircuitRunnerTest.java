@@ -249,6 +249,17 @@ public final class CircuitRunnerTest {
                 () -> CircuitRunner.run(request(1, 200000)));
         });
 
+        TestRunner.test("shots work limit", () -> {
+            // 12 比特 × 10 万 shots = 409.6M > 上限 200M
+            TestRunner.assertThrows("too much work", CircuitException.class,
+                () -> CircuitRunner.run(request(12, 100000, step(gate("H", 0)))));
+        });
+
+        TestRunner.test("angle out of range throws", () -> {
+            TestRunner.assertThrows("huge angle", CircuitException.class,
+                () -> CircuitRunner.run(request(1, 0, step(gateAngle("RX", 1e100, 0)))));
+        });
+
         TestRunner.test("gate overlap in one step throws", () -> {
             TestRunner.assertThrows("H(q0)+CNOT(q0,q1) same step", CircuitException.class,
                 () -> CircuitRunner.run(request(2, 0,

@@ -35,6 +35,15 @@ public final class AppConfig {
     /** 单量子位可使用的最大门数（即最大时间步数；一列最多一个门 / 比特）。 */
     public static final int MAX_STEPS = 10000;
 
+    /** 请求体上限（字节），防止超大 JSON 导致内存耗尽（DoS）。 */
+    public static final int MAX_BODY_BYTES = 8 * 1024 * 1024;
+
+    /** 采样工作量上限：shots × 2^qubits，防止单请求 CPU 打满（DoS）。 */
+    public static final long MAX_SHOT_WORK = 200_000_000L;
+
+    /** 旋转门角度上限（弧度），防止超大红量导致 NaN。 */
+    public static final double MAX_ANGLE = 1_000_000.0;
+
     private AppConfig() {
     }
 
@@ -86,5 +95,15 @@ public final class AppConfig {
     public static String frontendDir() {
         String env = System.getenv("QSIM_FRONTEND");
         return (env != null && !env.isBlank()) ? env : "frontend";
+    }
+
+    /**
+     * 允许的跨域来源：仅当显式配置环境变量 {@code QSIM_CORS_ORIGIN} 时才开启 CORS。
+     * 默认返回 {@code null}（同源访问，不开启跨域，避免 {@code *} 的滥用面）。
+     * 云端若确需前后端分离部署，再设置具体来源（如 {@code https://example.com}）。
+     */
+    public static String corsOrigin() {
+        String env = System.getenv("QSIM_CORS_ORIGIN");
+        return (env != null && !env.isBlank()) ? env.trim() : null;
     }
 }

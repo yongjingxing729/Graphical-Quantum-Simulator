@@ -95,5 +95,17 @@ public final class JsonTest {
             TestRunner.assertThrows("unterminated", Json.JsonException.class, () -> Json.parse("\"abc"));
             TestRunner.assertThrows("trailing", Json.JsonException.class, () -> Json.parse("{}x"));
         });
+
+        TestRunner.test("deeply nested json rejected", () -> {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 500; i++) sb.append("[");
+            for (int i = 0; i < 500; i++) sb.append("]");
+            TestRunner.assertThrows("deep nesting", Json.JsonException.class,
+                () -> Json.parse(sb.toString()));
+        });
+
+        TestRunner.test("non-finite number rejected", () -> {
+            TestRunner.assertThrows("1e400", Json.JsonException.class, () -> Json.parse("1e400"));
+        });
     }
 }
